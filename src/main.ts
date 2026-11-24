@@ -1,0 +1,8 @@
+import '@fontsource/ibm-plex-mono/400.css';
+import { mount } from 'svelte';
+import './app.css';
+import App from './App.svelte';
+
+const target = document.getElementById('app');
+if (!target) throw new Error('Missing #app');
+export default mount(App, { target });

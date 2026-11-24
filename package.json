@@ -1,0 +1,35 @@
+{
+  "name": "krathong-txt",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "test": "vitest run",
+    "deploy": "vite build && wrangler deploy"
+  },
+  "description": "ลอยกระทง.txt — float an ASCII krathong on a live river with friends.",
+  "dependencies": {
+    "lz-string": "^1.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261124.1",
+    "@fontsource/chonburi": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/mitr": "^5.3.0",
+    "@fontsource/noto-sans-thai": "^5.3.0",
+    "@fontsource/sriracha": "^5.3.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.2",
+    "@tsconfig/svelte": "^5.0.9",
+    "@types/node": "^24.19.2",
+    "playwright": "^1.65.1",
+    "svelte": "^5.59.1",
+    "svelte-check": "^4.7.8",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.167.0"
+  }
+}

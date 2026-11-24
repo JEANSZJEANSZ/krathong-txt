@@ -1,0 +1,47 @@
+:root {
+	--night: #07080f;
+	--ink: #0b0f19;
+	--moon: #f3ead8;
+	--moon-soft: rgba(243, 234, 216, 0.66);
+	--moon-faint: rgba(243, 234, 216, 0.22);
+	--leaf: #5fbf74;
+	--leaf-deep: #2f6b3e;
+	--marigold: #f29a2e;
+	--candle: #ffd27a;
+	--paper: #efe3c8;
+	--paper-ink: #3b2a18;
+	--lotus: #f4a6c8;
+	--mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--thai: 'Mitr', 'Noto Sans Thai', system-ui, sans-serif;
+	--hand: 'Sriracha', 'Mitr', cursive;
+	--display: 'Chonburi', 'Mitr', serif;
+	--ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+	--radius: 4px;
+	--radius-sm: 3px;
+	--serif: var(--display);
+	--sans: var(--thai);
+	--gold: var(--candle);
+	--blush: var(--lotus);
+	color-scheme: dark;
+}
+* {
+	box-sizing: border-box;
+}
+html,
+body {
+	margin: 0;
+	background: var(--night);
+	color: var(--moon);
+	font-family: var(--thai);
+	-webkit-font-smoothing: antialiased;
+	-webkit-tap-highlight-color: transparent;
+}
+#app {
+	min-height: 100svh;
+}
+button,
+input,
+textarea {
+	font-family: inherit;
+}
