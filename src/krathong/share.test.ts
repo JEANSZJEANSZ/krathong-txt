@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { compressToEncodedURIComponent } from 'lz-string';
-import { DEFAULT_KRATHONG, type Krathong } from './model';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
+import { BASES, DEFAULT_KRATHONG, DEFAULT_LOOK, FLOWERS, FOLD_INFO, type Krathong } from './model';
 import { decodeKrathong, encodeKrathong, krathongHash, normalizeKrathong, parseKrathongRoute } from './share';
 
 const full: Krathong = {
+	...DEFAULT_LOOK,
 	base: 'bread',
 	flowers: ['lotus', 'marigold'],
+	colors: ['natural', 'natural'],
 	coin: true,
 	hair: true,
 	wish: 'ขอให้ครอบครัวมีความสุข แข็งแรง 🙏\nand may we meet again next year',
@@ -41,7 +43,7 @@ describe('krathong share', () => {
 
 	it('sanitises unknown ids, duplicates and over-long text', () => {
 		const token = compressToEncodedURIComponent(
-			JSON.stringify({ k: 1, b: 'plastic', f: ['lotus', 'lotus', 'rose', 'orchid', 'marigold', 'jasmine'], w: 'x'.repeat(500), t: ' a   b ' }),
+			JSON.stringify({ k: 1, b: 'plastic', f: ['lotus', 'lotus', 'tulip', 'orchid', 'marigold', 'jasmine'], w: 'x'.repeat(500), t: ' a   b ' }),
 		);
 		const k = decodeKrathong(token)!;
 		expect(k.base).toBe('leaf');
@@ -79,5 +81,63 @@ describe('standalone routes', () => {
 		const u = new URL(standaloneUrl(full, 'https://krathong-txt.marqotone.space'));
 		expect(u.search).toBe('');
 		expect(decodeKrathong(parseAppRoute(u.hash).token!)).toEqual(full);
+	});
+});
+
+describe('krathong variants in links', () => {
+	const fancy: Krathong = {
+		...full,
+		base: 'coconut',
+		fold: 'pakha',
+		flowers: ['garland', 'rose', 'dokrak'],
+		colors: ['purple', 'pink', 'natural'],
+		candles: 3,
+		wax: 'gold',
+		incense: 1,
+		flags: true,
+		pinwheel: true,
+		lanterns: true,
+		fireflies: true,
+		accent: 'jade',
+	};
+	it('round-trips every new option', () => expect(decodeKrathong(encodeKrathong(fancy))).toEqual(fancy));
+	it('round-trips each base, fold and flower', () => {
+		for (const b of BASES)
+			for (const f of FOLD_INFO) {
+				const k = { ...full, base: b.id, fold: f.id };
+				expect(decodeKrathong(encodeKrathong(k))).toEqual(k);
+			}
+		for (const f of FLOWERS) {
+			const k = { ...full, flowers: [f.id], colors: [f.colors[f.colors.length - 1]] };
+			expect(decodeKrathong(encodeKrathong(k))).toEqual(k);
+		}
+	});
+	it('decodes links made before variants existed (classic look)', () => {
+		const old = compressToEncodedURIComponent(JSON.stringify({ k: 1, b: 'leaf', f: ['marigold', 'jasmine'], x: 1, w: 'ขอให้รวย', s: 'แม่' }));
+		const k = decodeKrathong(old)!;
+		expect(k).toEqual({ ...DEFAULT_KRATHONG, flowers: ['marigold', 'jasmine'], colors: ['natural', 'natural'], coin: true, wish: 'ขอให้รวย', from: 'แม่' });
+		expect(k.fold).toBe('nail');
+		expect(k.candles).toBe(1);
+		expect(k.incense).toBe(3);
+	});
+	it('keeps old-style tokens for classic krathongs (no new keys)', () => {
+		const t = encodeKrathong({ ...DEFAULT_KRATHONG, wish: 'hi' });
+		expect(decodeKrathong(t)!.wish).toBe('hi');
+		expect(Object.keys(JSON.parse(decompressFromEncodedURIComponent(t)!)).sort()).toEqual(['b', 'f', 'k', 'w']);
+	});
+	it('falls back to defaults on unknown option values', () => {
+		const t = compressToEncodedURIComponent(
+			JSON.stringify({ k: 1, b: 'spaceship', f: ['rose', 'cactus', 'rose'], c: ['neon', 'red'], o: 'origami', n: 9, m: 'plaid', i: 7, d: 255, a: 'rainbow' }),
+		);
+		const k = decodeKrathong(t)!;
+		expect(k.base).toBe('leaf');
+		expect(k.flowers).toEqual(['rose']);
+		expect(k.colors).toEqual(['natural']);
+		expect(k.fold).toBe('nail');
+		expect(k.candles).toBe(1);
+		expect(k.wax).toBe('cream');
+		expect(k.incense).toBe(3);
+		expect(k.accent).toBe('none');
+		expect([k.flags, k.pinwheel, k.lanterns, k.fireflies]).toEqual([true, true, true, true]);
 	});
 });

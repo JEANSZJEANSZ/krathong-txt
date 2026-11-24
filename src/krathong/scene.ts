@@ -3,10 +3,10 @@
  * sky lanterns, fireworks, layered water, ambient krathongs and the hero krathong.
  * Glyphs are blitted from a cached atlas so a full-screen grid holds 60fps.
  */
-import type { BaseId, FlowerKind, Krathong } from './model';
+import { lookFromWire, type BaseId, type FlowerKind, type Krathong, type Look } from './model';
 import { buildSprite, hex, type RGB, type SpriteSpec } from './sprite';
 
-export type LiveInput = { id: string; base: BaseId; flowers: FlowerKind[]; coin?: boolean; hair?: boolean; label: string };
+export type LiveInput = { id: string; look: Look; label: string };
 export type SceneMode = 'build' | 'float' | 'arrive';
 export type SceneEvent = 'arrived' | 'floated' | 'gone';
 export type SceneLayout = { homeX: number; homeY: number; horizon: number; moonX: number; moonY: number };
@@ -63,8 +63,8 @@ const TEMPLE_HI = hex('#d9b66a');
 const WARM = hex('#ffb35c');
 const FW_COLORS = [hex('#ffe14a'), hex('#ff79de'), hex('#b8ffc8'), hex('#7cbcff'), hex('#ffb3e0')];
 
-const BASE_IDS: BaseId[] = ['leaf', 'leaf', 'leaf', 'bread', 'cone'];
-const KINDS: FlowerKind[] = ['marigold', 'orchid', 'lotus', 'jasmine'];
+const BASE_IDS: BaseId[] = ['leaf', 'leaf', 'leaf', 'pleat', 'petal', 'bread', 'cone', 'coconut', 'ice', 'hyacinth', 'boat'];
+const KINDS: FlowerKind[] = ['marigold', 'marigold', 'orchid', 'lotus', 'jasmine', 'garland', 'bud', 'rose', 'mum', 'dokrak'];
 
 type Ambient = { spec: SpriteSpec; z: number; x: number; speed: number; phase: number };
 type Live = Ambient & { id: string; born: number; label: string; fresh: boolean };
@@ -111,7 +111,14 @@ export function createKrathongScene(
 		const flowers: FlowerKind[] = [];
 		for (let k = 0; k < n; k++) flowers.push(KINDS[Math.floor(rnd() * KINDS.length)]);
 		return {
-			spec: { base: BASE_IDS[Math.floor(rnd() * BASE_IDS.length)], flowers, lit: true },
+			spec: {
+				...lookFromWire({ base: BASE_IDS[Math.floor(rnd() * BASE_IDS.length)], flowers }),
+				fold: (['nail', 'nail', 'rose', 'pakha'] as const)[Math.floor(rnd() * 4)],
+				candles: rnd() < 0.2 ? 3 : 1,
+				lanterns: rnd() < 0.2,
+				flags: rnd() < 0.15,
+				lit: true,
+			},
 			z: 0.03 + ((i * 3) % AMBIENT_N / AMBIENT_N) * 0.3 + rnd() * 0.03,
 			x: i / AMBIENT_N + rnd() * 0.08,
 			speed: 0.5 + rnd() * 0.6,
@@ -555,7 +562,7 @@ export function createKrathongScene(
 			lights.push({ x: pose.x, y: pose.y, s: pose.s * pose.alpha });
 			items.push({
 				y: pose.y + 0.01,
-				fn: () => placeSprite({ base: k.base, flowers: k.flowers, coin: k.coin, hair: k.hair, lit: true }, pose.x, pose.y, w, t, 0, pose.flare, clamp(0.35 + pose.s), pose.alpha, true),
+				fn: () => placeSprite({ ...k, lit: true }, pose.x, pose.y, w, t, 0, pose.flare, clamp(0.35 + pose.s), pose.alpha, true),
 			});
 			if (!reduced && mode === 'build' && Math.floor(t / 2.6) !== Math.floor((t - dt) / 2.6)) ripples.push({ x: pose.x, y: pose.y + 0.6, t0: t, big: false });
 		}
@@ -681,7 +688,7 @@ export function createKrathongScene(
 			const t = frozen ?? performance.now() / 1000;
 			live.push({
 				id: item.id,
-				spec: { base: item.base, flowers: item.flowers.length ? item.flowers : ['marigold'], coin: item.coin, hair: item.hair, lit: true },
+				spec: { ...item.look, lit: true },
 				z: 0.05 + r() * 0.3,
 				x: fresh ? -0.06 : r() * 1.05,
 				speed: 0.55 + r() * 0.5,

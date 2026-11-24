@@ -1,7 +1,10 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
-import { DEFAULT_KRATHONG, isBaseId, isFlowerKind, KLIMITS, type FlowerKind, type Krathong } from './model';
+import { DECOR, KLIMITS, normalizeLook, type Krathong, type Look } from './model';
 
-/** Compact wire format kept in the URL hash: #/krathong/<token>. */
+/**
+ * Compact wire format kept in the URL hash: #/<token>. Version stays `k: 1`; newer fields are
+ * optional so links made before variants existed still decode (to the classic look).
+ */
 export type KrathongPayload = {
 	k: 1;
 	b: string;
@@ -11,6 +14,20 @@ export type KrathongPayload = {
 	w?: string;
 	t?: string;
 	s?: string;
+	/** fold pattern (default nail) */
+	o?: string;
+	/** flower colours, parallel to f (default all natural) */
+	c?: string[];
+	/** candle count (default 1) */
+	n?: number;
+	/** candle wax colour (default cream) */
+	m?: string;
+	/** incense sticks (default 3) */
+	i?: number;
+	/** decor bits: 1 flags, 2 pinwheel, 4 lanterns, 8 fireflies */
+	d?: number;
+	/** accent (default none) */
+	a?: string;
 };
 
 function clip(s: unknown, max: number, keepLines = false): string {
@@ -19,20 +36,10 @@ function clip(s: unknown, max: number, keepLines = false): string {
 	return Array.from(v.trim()).slice(0, max).join('');
 }
 
-function cleanFlowers(list: unknown): FlowerKind[] {
-	const out: FlowerKind[] = [];
-	if (Array.isArray(list)) for (const f of list) if (isFlowerKind(f) && !out.includes(f)) out.push(f);
-	return out.slice(0, KLIMITS.flowers);
-}
-
 export function normalizeKrathong(k: Partial<Krathong>): Krathong {
-	const flowers = cleanFlowers(k.flowers);
 	const secret = !!k.secret;
 	return {
-		base: isBaseId(k.base) ? k.base : DEFAULT_KRATHONG.base,
-		flowers: flowers.length ? flowers : [...DEFAULT_KRATHONG.flowers],
-		coin: !!k.coin,
-		hair: !!k.hair,
+		...normalizeLook(k),
 		secret,
 		wish: secret ? '' : clip(k.wish, KLIMITS.wish, true),
 		to: clip(k.to, KLIMITS.to),
@@ -48,14 +55,33 @@ export function toKPayload(k: Krathong): KrathongPayload {
 	if (n.wish) p.w = n.wish;
 	if (n.to) p.t = n.to;
 	if (n.from) p.s = n.from;
+	if (n.fold !== 'nail') p.o = n.fold;
+	if (n.colors.some((c) => c !== 'natural')) p.c = n.colors;
+	if (n.candles !== 1) p.n = n.candles;
+	if (n.wax !== 'cream') p.m = n.wax;
+	if (n.incense !== 3) p.i = n.incense;
+	const d = DECOR.reduce((acc, id, bit) => acc | (n[id] ? 1 << bit : 0), 0);
+	if (d) p.d = d;
+	if (n.accent !== 'none') p.a = n.accent;
 	return p;
 }
 
 export function fromKPayload(p: KrathongPayload): Krathong {
 	const x = typeof p.x === 'number' ? p.x : 0;
+	const d = typeof p.d === 'number' ? p.d : 0;
 	return normalizeKrathong({
-		base: p.b as Krathong['base'],
-		flowers: p.f as FlowerKind[],
+		base: p.b as Look['base'],
+		flowers: p.f as Look['flowers'],
+		colors: p.c as Look['colors'],
+		fold: p.o as Look['fold'],
+		candles: (p.n ?? 1) as Look['candles'],
+		wax: p.m as Look['wax'],
+		incense: (p.i ?? 3) as Look['incense'],
+		flags: !!(d & 1),
+		pinwheel: !!(d & 2),
+		lanterns: !!(d & 4),
+		fireflies: !!(d & 8),
+		accent: p.a as Look['accent'],
 		coin: !!(x & 1),
 		hair: !!(x & 2),
 		secret: !!(x & 4),

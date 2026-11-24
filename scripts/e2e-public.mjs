@@ -19,7 +19,7 @@ function client(path = '/api/river') {
 				waiters.push({ pred, res });
 				setTimeout(() => rej(new Error('timeout')), ms);
 			});
-		ws.onopen = () => resolve({ ws, next, inboxHas: (p) => inbox.some(p), send: (o) => ws.send(typeof o === 'string' ? o : JSON.stringify(o)) });
+		ws.onopen = () => resolve({ ws, next, inboxHas: (p) => inbox.some(p), clear: () => (inbox.length = 0), send: (o) => ws.send(typeof o === 'string' ? o : JSON.stringify(o)) });
 	});
 }
 let n = 0;
@@ -59,6 +59,11 @@ A.send({ type: 'float', k: { base: 'leaf', flowers: ['lotus'], wish: 'ควย'
 ok((await A.next((m) => m.type === 'error' && m.code === 'rate')).code === 'rate', 'per-network 10s rate limit');
 A.send({ type: 'report', id: 'nonexistent-1' });
 ok((await A.next((m) => m.type === 'reported')).id === 'nonexistent-1', 'report acknowledged (unknown id is a no-op)');
+// New variants pass server validation (proved via the reject path, so still nothing visible floats).
+await sleep(10_500);
+A.clear();
+A.send({ type: 'float', k: { base: 'coconut', flowers: ['garland', 'dokrak'], colors: ['purple', 'white'], fold: 'pakha', candles: 3, wax: 'gold', incense: 1, deco: ['flags', 'pinwheel', 'lanterns', 'fireflies'], accent: 'jade', wish: 'ไปตายซะ' } });
+ok((await A.next((m) => m.type === 'error')).code === 'blocked', 'new bases/flowers/decor accepted by validation (then moderation blocks the test wish)');
 A.ws.close();
 ok((await B.next((m) => m.type === 'presence' && m.count === hA.count)).count === hA.count, 'B sees presence go down');
 B.ws.close();

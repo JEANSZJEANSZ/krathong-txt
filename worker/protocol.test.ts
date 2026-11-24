@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanText, LIMITS, parseClientMsg, validateFloat } from './protocol';
+import { BASES, cleanText, DECOR, FLOWER_KINDS, LIMITS, parseClientMsg, validateFloat } from './protocol';
 
 const ok = { base: 'leaf', flowers: ['lotus', 'marigold'], coin: true, hair: false, name: 'Marqo', wish: 'ขอให้มีความสุข' };
 
@@ -9,7 +9,7 @@ describe('validateFloat', () => {
 	});
 	it('rejects unknown bases / flowers and non-objects', () => {
 		expect(validateFloat({ ...ok, base: 'plastic' })).toBeNull();
-		expect(validateFloat({ ...ok, flowers: ['rose'] })).toBeNull();
+		expect(validateFloat({ ...ok, flowers: ['tulip'] })).toBeNull();
 		expect(validateFloat({ ...ok, flowers: [] })).toBeNull();
 		expect(validateFloat({ ...ok, flowers: 'lotus' })).toBeNull();
 		expect(validateFloat(null)).toBeNull();
@@ -70,5 +70,37 @@ describe('report messages', () => {
 	it('rejects odd report ids', () => {
 		expect(parseClientMsg(JSON.stringify({ type: 'report', id: '<script>' }))).toHaveProperty('error');
 		expect(parseClientMsg(JSON.stringify({ type: 'report', id: 'x'.repeat(40) }))).toHaveProperty('error');
+	});
+});
+
+describe('variant fields', () => {
+	it('accepts every allowed id', () => {
+		for (const base of BASES) expect(validateFloat({ ...ok, base })?.base).toBe(base);
+		for (const f of FLOWER_KINDS) expect(validateFloat({ ...ok, flowers: [f] })?.flowers).toEqual([f]);
+	});
+	it('keeps valid options and drops defaults', () => {
+		const v = validateFloat({ ...ok, fold: 'rose', colors: ['white', 'red'], candles: 3, wax: 'gold', incense: 0, deco: ['fireflies', 'flags'], accent: 'jade' })!;
+		expect(v).toMatchObject({ fold: 'rose', colors: ['white', 'red'], candles: 3, wax: 'gold', incense: 0, deco: ['flags', 'fireflies'], accent: 'jade' });
+		const d = validateFloat({ ...ok, fold: 'nail', colors: ['natural', 'natural'], candles: 1, wax: 'cream', incense: 3, deco: [], accent: 'none' })!;
+		expect(Object.keys(d).sort()).toEqual(Object.keys(validateFloat(ok)!).sort());
+	});
+	it('ignores unknown option values instead of trusting them', () => {
+		const v = validateFloat({ ...ok, fold: '<b>', colors: ['#fff', 'javascript:'], candles: 99, wax: 'x', incense: 2, deco: ['bomb', 'pinwheel'], accent: {} })!;
+		expect(v.fold).toBeUndefined();
+		expect(v.colors).toBeUndefined();
+		expect(v.candles).toBeUndefined();
+		expect(v.wax).toBeUndefined();
+		expect(v.incense).toBeUndefined();
+		expect(v.accent).toBeUndefined();
+		expect(v.deco).toEqual(['pinwheel']);
+	});
+	it('keeps colours aligned with de-duplicated flowers', () => {
+		const v = validateFloat({ ...ok, flowers: ['rose', 'rose', 'mum'], colors: ['pink', 'blue', 'white'] })!;
+		expect(v.flowers).toEqual(['rose', 'mum']);
+		expect(v.colors).toEqual(['pink', 'white']);
+	});
+	it('a fully decorated float still fits in one frame', () => {
+		const k = { ...ok, name: 'ก'.repeat(24), wish: 'ข'.repeat(200), fold: 'pakha', colors: ['purple', 'pink', 'white'], flowers: ['garland', 'rose', 'mum'], candles: 3, wax: 'green', incense: 1, deco: [...DECOR], accent: 'indigo' };
+		expect(parseClientMsg(JSON.stringify({ type: 'float', k, cid: 'x'.repeat(10) }))).toHaveProperty('type', 'float');
 	});
 });

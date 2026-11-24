@@ -1,6 +1,6 @@
 # ลอยกระทง.txt (krathong-txt)
 
-A virtual Loy Krathong festival in ASCII. Write a wish, light a candle, and float a krathong on a shared live river with everyone else.
+A virtual Loy Krathong festival in ASCII. Build your krathong (9 bases, 3 leaf folds, 9 flowers in your colours, candles, incense, flags, a pinwheel, lanterns, fireflies and an accent colour), write a wish, light a candle, and float it on a shared live river with everyone else.
 
 **Live site:** [https://krathong-txt.marqotone.space](https://krathong-txt.marqotone.space)
 
@@ -22,7 +22,7 @@ npx wrangler dev
 Other commands:
 
 ```bash
-npm test           # share-link, protocol, and moderation tests
+npm test           # share-link, protocol, sprite and moderation tests
 npm run check      # TypeScript + svelte-check
 npm run build      # production files go to dist/
 ```

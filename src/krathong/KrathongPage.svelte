@@ -5,7 +5,25 @@
 	import AsciiPreview from './AsciiPreview.svelte';
 	import Kanok from './Kanok.svelte';
 	import { createAmbience } from './audio';
-	import { BASES, DEFAULT_KRATHONG, FLOWERS, KLIMITS, type FlowerKind, type Krathong } from './model';
+	import {
+		ACCENT_INFO,
+		BASES,
+		COLOR_INFO,
+		DECOR_INFO,
+		DEFAULT_KRATHONG,
+		FLOWERS,
+		FOLD_INFO,
+		isLeafy,
+		KLIMITS,
+		lookFromWire,
+		lookToWire,
+		WAX_INFO,
+		type AccentId,
+		type ColorId,
+		type FlowerKind,
+		type Krathong,
+		type WaxId,
+	} from './model';
 	import { connectRiver, type River, type RiverStatus } from './river';
 	import { moderate, REJECT_MESSAGE } from '../../worker/moderation';
 	import { createKrathongScene, type KrathongScene, type SceneEvent } from './scene';
@@ -20,7 +38,7 @@
 	const initialToken = untrack(() => token);
 	const received = initialToken ? decodeKrathong(initialToken) : null;
 
-	let k = $state<Krathong>(received ? { ...received, wish: '', to: '', from: '', secret: false } : { ...DEFAULT_KRATHONG, flowers: [...DEFAULT_KRATHONG.flowers] });
+	let k = $state<Krathong>(received ? { ...received, wish: '', to: '', from: '', secret: false } : { ...DEFAULT_KRATHONG, flowers: [...DEFAULT_KRATHONG.flowers], colors: [...DEFAULT_KRATHONG.colors] });
 	let phase = $state<Phase>(initialToken ? (received ? 'invite' : 'broken') : 'build');
 	let step = $state(0);
 	let muted = $state(false);
@@ -47,7 +65,7 @@
 	let raf = 0;
 	const amb = createAmbience();
 	const items = new Map<string, RiverItem>();
-	let ownItem: RiverItem | null = null;
+	let ownItem = $state<RiverItem | null>(null);
 	let heroGone = false;
 
 	const TH_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
@@ -77,7 +95,7 @@
 	}
 	function addToScene(it: RiverItem, fresh: boolean) {
 		items.set(it.id, it);
-		scene?.addLive({ id: it.id, base: it.base, flowers: it.flowers, coin: it.coin, hair: it.hair, label: labelOf(it) }, fresh);
+		scene?.addLive({ id: it.id, look: lookFromWire(it), label: labelOf(it) }, fresh);
 	}
 
 	function onEvent(e: SceneEvent) {
@@ -166,7 +184,7 @@
 
 	$effect(() => {
 		const snap = normalizeKrathong(k);
-		if (phase === 'build') scene?.setKrathong({ ...snap, flowers: [...k.flowers] });
+		if (phase === 'build') scene?.setKrathong(snap);
 	});
 
 	let toastTimer = 0;
@@ -194,11 +212,42 @@
 	}
 
 	function toggleFlower(id: FlowerKind) {
-		if (k.flowers.includes(id)) {
-			if (k.flowers.length > 1) k.flowers = k.flowers.filter((f) => f !== id);
-		} else if (k.flowers.length < KLIMITS.flowers) k.flowers = [...k.flowers, id];
-		else k.flowers = [...k.flowers.slice(1), id];
+		const colors = k.flowers.map((_, i) => k.colors[i] ?? 'natural');
+		const i = k.flowers.indexOf(id);
+		if (i >= 0) {
+			if (k.flowers.length > 1) {
+				k.flowers = k.flowers.filter((_, j) => j !== i);
+				k.colors = colors.filter((_, j) => j !== i);
+			}
+		} else if (k.flowers.length < KLIMITS.flowers) {
+			k.flowers = [...k.flowers, id];
+			k.colors = [...colors, 'natural'];
+		} else {
+			k.flowers = [...k.flowers.slice(1), id];
+			k.colors = [...colors.slice(1), 'natural'];
+		}
 	}
+	function setColor(i: number, c: ColorId) {
+		const colors = k.flowers.map((_, j) => k.colors[j] ?? 'natural');
+		colors[i] = c;
+		k.colors = colors;
+	}
+	const flowerInfo = (id: FlowerKind) => FLOWERS.find((f) => f.id === id)!;
+	const swatch = (id: FlowerKind, c: ColorId) => (c === 'natural' ? flowerInfo(id).color : COLOR_INFO[c].css);
+	const tintOf = (id: FlowerKind) => {
+		const i = k.flowers.indexOf(id);
+		return i >= 0 ? swatch(id, k.colors[i] ?? 'natural') : flowerInfo(id).color;
+	};
+	function stepCandles(d: number) {
+		k.candles = Math.max(1, Math.min(3, k.candles + d)) as 1 | 2 | 3;
+	}
+	const INCENSE_STEPS = [0, 1, 3] as const;
+	function stepIncense(d: number) {
+		const i = INCENSE_STEPS.indexOf(k.incense);
+		k.incense = INCENSE_STEPS[Math.max(0, Math.min(2, i + d))];
+	}
+	const WAXES = Object.keys(WAX_INFO) as WaxId[];
+	const ACCENTS = Object.keys(ACCENT_INFO) as AccentId[];
 
 	function hideItem(id: string) {
 		items.delete(id);
@@ -233,10 +282,7 @@
 		scene?.setKrathong(snap);
 		scene?.setMode('float');
 		const sent = river?.float({
-			base: snap.base,
-			flowers: snap.flowers,
-			coin: snap.coin,
-			hair: snap.hair,
+			...lookToWire(snap),
 			...(snap.from ? { name: snap.from.slice(0, 24) } : {}),
 			...(!snap.secret && snap.wish ? { wish: snap.wish } : {}),
 		});
@@ -346,6 +392,11 @@
 		orchid: [' &*& ', '*&*&*', '  |  '],
 		lotus: ['  /\\  ', ' /\\/\\ ', '(____)'],
 		jasmine: [' o*o ', '*o*o*', ' o*o '],
+		garland: ['o8o8o', '8   8', ' o8o '],
+		bud: ['  ^  ', ' (0) ', '  |  '],
+		rose: [' e@e ', '@e@e@', '  |  '],
+		mum: [' *#* ', '#*#*#', ' *#* '],
+		dokrak: [' +x+ ', 'x+x+x', ' +x+ '],
 	};
 </script>
 
@@ -402,33 +453,69 @@
 
 			<div class="body">
 				{#if step === 0}
-					<p class="say">เลือกตัวกระทงก่อน<span class="en">choose what it floats on</span></p>
-					<div class="row bases">
+					<p class="say">เลือกตัวกระทงก่อน<span class="en">choose what it floats on · {BASES.length} kinds</span></p>
+					<div class="row bases scroll">
 						{#each BASES as b (b.id)}
 							<button type="button" class="item" class:on={k.base === b.id} aria-pressed={k.base === b.id} onclick={() => (k.base = b.id)}>
-								<AsciiPreview spec={{ base: b.id, flowers: k.flowers, lit: true }} width={11} />
+								<AsciiPreview spec={{ ...k, base: b.id, lit: true }} width={11} />
 								<span class="hand">{b.th}</span>
 								<span class="en">{b.en}</span>
 							</button>
 						{/each}
 					</div>
+					{#if isLeafy(k.base)}
+						<div class="chips" role="radiogroup" aria-label="ลายพับใบตอง · leaf fold">
+							<span class="chips-label">ลายพับ <small>fold</small></span>
+							{#each FOLD_INFO as f (f.id)}
+								<button type="button" class="chip" class:on={k.fold === f.id} role="radio" aria-checked={k.fold === f.id} onclick={() => (k.fold = f.id)} title={f.en}>
+									<code aria-hidden="true">{f.art}</code>{f.th}
+								</button>
+							{/each}
+						</div>
+					{/if}
 					<p class="note">{BASES.find((b) => b.id === k.base)?.hintTh}</p>
 				{:else if step === 1}
 					<p class="say">หยิบดอกไม้ใส่ได้ {th(3)} อย่าง<span class="en">pick up to three</span></p>
-					<div class="row flowers">
+					<div class="row flowers scroll">
 						{#each FLOWERS as f (f.id)}
 							<button type="button" class="item" class:on={k.flowers.includes(f.id)} aria-pressed={k.flowers.includes(f.id)} onclick={() => toggleFlower(f.id)}>
-								<pre class="bunch" style:color={f.color} aria-hidden="true">{flowerArt[f.id].join('\n')}</pre>
+								<pre class="bunch" style:color={tintOf(f.id)} aria-hidden="true">{flowerArt[f.id].join('\n')}</pre>
 								<span class="hand">{f.th}</span>
 								<span class="box" aria-hidden="true">{k.flowers.includes(f.id) ? '[x]' : '[ ]'}</span>
 							</button>
 						{/each}
 					</div>
+					<ul class="receipt tints" aria-label="สีดอกไม้ · flower colours">
+						{#each k.flowers as id, i (id)}
+							<li>
+								<span class="what">{flowerInfo(id).th} <small>สี{COLOR_INFO[k.colors[i] ?? 'natural'].th}</small></span><span class="lead"></span>
+								<span class="sws" role="radiogroup" aria-label={`สี${flowerInfo(id).th}`}>
+									{#each flowerInfo(id).colors as c (c)}
+										<button type="button" class="sw" class:on={(k.colors[i] ?? 'natural') === c} role="radio" aria-checked={(k.colors[i] ?? 'natural') === c} style:--sw={swatch(id, c)} onclick={() => setColor(i, c)} aria-label={`${COLOR_INFO[c].th} · ${COLOR_INFO[c].en}`} title={COLOR_INFO[c].th}></button>
+									{/each}
+								</span>
+							</li>
+						{/each}
+					</ul>
 				{:else if step === 2}
 					<p class="say">ของบูชาบนกระทง<span class="en">what goes on top</span></p>
 					<ul class="receipt">
-						<li><span class="what">เทียน</span><span class="lead"></span><span class="qty">{th(1)} เล่ม</span><span class="box">[x]</span></li>
-						<li><span class="what">ธูป</span><span class="lead"></span><span class="qty">{th(3)} ดอก</span><span class="box">[x]</span></li>
+						<li>
+							<span class="what">เทียน <small>candles</small></span><span class="lead"></span>
+							<span class="stepper"><button type="button" onclick={() => stepCandles(-1)} disabled={k.candles <= 1} aria-label="เทียนน้อยลง · fewer candles">‹</button><span class="qty">{th(k.candles)} เล่ม</span><button type="button" onclick={() => stepCandles(1)} disabled={k.candles >= 3} aria-label="เทียนเพิ่ม · more candles">›</button></span>
+						</li>
+						<li>
+							<span class="what">สีเทียน <small>{WAX_INFO[k.wax].th}</small></span><span class="lead"></span>
+							<span class="sws" role="radiogroup" aria-label="สีเทียน · candle colour">
+								{#each WAXES as c (c)}
+									<button type="button" class="sw" class:on={k.wax === c} role="radio" aria-checked={k.wax === c} style:--sw={WAX_INFO[c].css} onclick={() => (k.wax = c)} aria-label={WAX_INFO[c].th} title={WAX_INFO[c].th}></button>
+								{/each}
+							</span>
+						</li>
+						<li>
+							<span class="what">ธูป <small>incense</small></span><span class="lead"></span>
+							<span class="stepper"><button type="button" onclick={() => stepIncense(-1)} disabled={k.incense === 0} aria-label="ธูปน้อยลง · less incense">‹</button><span class="qty">{k.incense ? `${th(k.incense)} ดอก` : 'ไม่ใส่'}</span><button type="button" onclick={() => stepIncense(1)} disabled={k.incense === 3} aria-label="ธูปเพิ่ม · more incense">›</button></span>
+						</li>
 						<li>
 							<label>
 								<input type="checkbox" bind:checked={k.coin} />
@@ -440,6 +527,22 @@
 								<input type="checkbox" bind:checked={k.hair} />
 								<span class="what">เส้นผม <small>ลอยเคราะห์</small></span><span class="lead"></span><span class="qty">{th(1)} เส้น</span><span class="box" aria-hidden="true">{k.hair ? '[x]' : '[ ]'}</span>
 							</label>
+						</li>
+						{#each DECOR_INFO as d (d.id)}
+							<li>
+								<label>
+									<input type="checkbox" bind:checked={k[d.id]} />
+									<span class="what">{d.th} <small>{d.small}</small></span><span class="lead"></span><span class="qty">{d.en}</span><span class="box" aria-hidden="true">{k[d.id] ? '[x]' : '[ ]'}</span>
+								</label>
+							</li>
+						{/each}
+						<li>
+							<span class="what">สีประจำกระทง <small>{ACCENT_INFO[k.accent].th}</small></span><span class="lead"></span>
+							<span class="sws" role="radiogroup" aria-label="สีประจำกระทง · accent">
+								{#each ACCENTS as c (c)}
+									<button type="button" class="sw" class:none={c === 'none'} class:on={k.accent === c} role="radio" aria-checked={k.accent === c} style:--sw={ACCENT_INFO[c].css || 'transparent'} onclick={() => (k.accent = c)} aria-label={`${ACCENT_INFO[c].th} · ${ACCENT_INFO[c].en}`} title={ACCENT_INFO[c].th}></button>
+								{/each}
+							</span>
 						</li>
 					</ul>
 				{:else}
@@ -776,7 +879,120 @@
 	}
 	.body {
 		min-height: 12.2rem;
+		max-height: min(21rem, 52vh);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: rgba(243, 234, 216, 0.18) transparent;
 		padding-top: 0.75rem;
+		padding-right: 0.15rem;
+	}
+	.row.scroll {
+		grid-auto-columns: minmax(4.9rem, 1fr);
+		overflow-x: auto;
+		scroll-snap-type: x proximity;
+		scrollbar-width: none;
+		mask-image: linear-gradient(90deg, #000 88%, transparent);
+	}
+	.row.scroll::-webkit-scrollbar {
+		display: none;
+	}
+	.row.scroll .item {
+		scroll-snap-align: start;
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.2rem 0.5rem;
+		margin-top: 0.55rem;
+		font-size: 0.85rem;
+	}
+	.chips-label {
+		color: var(--moon-soft);
+		font-size: 0.78rem;
+	}
+	.chips-label small {
+		font-size: 0.62rem;
+		color: var(--moon-faint);
+	}
+	.chip {
+		border: 0;
+		border-bottom: 1px dashed rgba(243, 234, 216, 0.2);
+		background: none;
+		color: var(--moon-soft);
+		font: inherit;
+		padding: 0.15rem 0.1rem;
+		cursor: pointer;
+	}
+	.chip code {
+		font-family: var(--mono);
+		font-size: 0.7rem;
+		color: var(--leaf);
+		margin-right: 0.3rem;
+		opacity: 0.6;
+	}
+	.chip.on {
+		color: var(--moon);
+		border-bottom: 1px solid var(--marigold);
+	}
+	.chip.on code {
+		opacity: 1;
+	}
+	.chip:focus-visible,
+	.sw:focus-visible,
+	.stepper button:focus-visible {
+		outline: 1px dashed var(--candle);
+		outline-offset: 2px;
+	}
+	.tints {
+		margin-top: 0.5rem;
+		font-size: 0.85rem;
+	}
+	.sws {
+		display: inline-flex;
+		gap: 0.28rem;
+		align-items: center;
+	}
+	.sw {
+		width: 0.95rem;
+		height: 0.95rem;
+		padding: 0;
+		border-radius: 50%;
+		border: 1px solid rgba(243, 234, 216, 0.25);
+		background: var(--sw);
+		cursor: pointer;
+		position: relative;
+		transition: transform 0.2s var(--ease-out);
+	}
+	.sw.none {
+		background: repeating-linear-gradient(135deg, transparent 0 3px, rgba(243, 234, 216, 0.35) 3px 4px);
+	}
+	.sw.on {
+		transform: scale(1.18);
+		box-shadow: 0 0 0 2px #090c14, 0 0 0 3px var(--marigold);
+	}
+	.stepper {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.25rem;
+	}
+	.stepper button {
+		border: 0;
+		background: none;
+		color: var(--marigold);
+		font-family: var(--mono);
+		font-size: 0.95rem;
+		padding: 0 0.2rem;
+		cursor: pointer;
+	}
+	.stepper button:disabled {
+		color: var(--moon-faint);
+		cursor: default;
+	}
+	.stepper .qty {
+		min-width: 3.2rem;
+		text-align: center;
 	}
 	.say {
 		margin: 0 0 0.7rem;
@@ -1338,6 +1554,7 @@
 	}
 	.mobile .body {
 		min-height: 11rem;
+		max-height: 40vh;
 		padding-top: 0.6rem;
 	}
 	.mobile .steps button {
